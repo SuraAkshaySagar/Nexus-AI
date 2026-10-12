@@ -1,0 +1,37 @@
+# Environment variables & secrets
+.env
+**/.env
+.env.*
+**/.env.*
+!*.env.example
+!**/.env.example
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.pytest_cache/
+*.sqlite
+*.sqlite3
+nexus_data.db
+nexus_data.db-wal
+nexus_data.db-shm
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.eslintcache
+
+# OS Files
+.DS_Store
+Thumbs.db
