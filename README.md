@@ -73,19 +73,23 @@ USER INPUT / OMI VOICE
 ### 1. Backend Setup
 
 ```bash
-# Set up Python virtual environment
-python3 -m venv venv
-source venv/bin/activate
-pip install -r backend/requirements.txt
+# Option A: From backend folder (Recommended)
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 -m uvicorn app:app --reload --port 8000
 
-# Run FastAPI backend
+# Option B: From project root
+source venv/bin/activate
 uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Backend will be active at `http://localhost:8000` (API docs at `http://localhost:8000/docs`).
+Backend will be operational at `http://localhost:8000` (Swagger UI at `http://localhost:8000/docs`).
 
 ### 2. Frontend Setup
 
+In a separate terminal window:
 ```bash
 cd frontend
 npm install
@@ -94,22 +98,36 @@ npm run dev
 
 Dashboard will open at `http://localhost:5173`.
 
-### 3. Run Automated Tests
+### 3. Exposing for Omi Webhooks (ngrok)
 
 ```bash
+ngrok http 8000
+```
+In Omi Developer Mode, configure:
+- **Webhook URL**: `https://<your-ngrok-subdomain>.ngrok-free.app/omi/conversation`
+- **Secret Header**: `x-omi-secret: nexus_omi_webhook_secret_key`
+
+---
+
+## 📡 Core API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Core system health check |
+| `GET` | `/api/status` | Verified service status (Backend, Lyzr, Qdrant, Omi) |
+| `POST` | `/api/chat` | Direct multi-agent swarm chat with Qdrant retrieval |
+| `GET` | `/api/memories` | Semantic vector search in Qdrant cluster |
+| `POST` | `/api/memories` | Store knowledge point into Qdrant |
+| `POST` | `/omi/conversation` | Omi conversation transcript webhook |
+| `POST` | `/omi/realtime` | Omi realtime audio stream webhook |
+| `GET` | `/api/v1/tasks/{id}/events` | Live SSE execution stream |
+
+---
+
+## 🧪 Run Automated Tests
+
+```bash
+# From project root:
 source venv/bin/activate
 pytest backend/tests/test_api.py -v
 ```
-
----
-
-## 🔒 Security & Privacy
-
-- All API credentials remain strictly server-side in `backend/.env`.
-- Webhook endpoints require `x-omi-secret` authentication tokens.
-- Vector searches apply tenant and user-level isolation filters.
-
----
-
-## 📄 License
-MIT License. Built for NEXUS AI Multi-Agent Orchestration.

@@ -23,11 +23,26 @@ async def omi_conversation_webhook(
         raise HTTPException(status_code=401, detail="Unauthorized: Invalid Omi webhook secret")
 
     parsed = omi_service.parse_payload(body)
-    conv_id = str(uuid.uuid4())
     now = utc_now_iso()
 
+    # Deduplication check: check if an event with this ID or transcript exists
+    incoming_id = str(body.get("id") or body.get("session_id") or "")
     with get_connection() as conn:
         cursor = conn.cursor()
+        if incoming_id:
+            cursor.execute("SELECT id FROM voice_conversations WHERE id = ?;", (incoming_id,))
+            existing = cursor.fetchone()
+            if existing:
+                return {
+                    "status": "success",
+                    "conversation_id": existing["id"],
+                    "title": parsed["title"],
+                    "action_items_count": len(parsed["action_items"]),
+                    "extracted_tasks": parsed["extracted_tasks"],
+                    "deduplicated": True
+                }
+
+        conv_id = incoming_id if incoming_id else str(uuid.uuid4())
         cursor.execute("""
         INSERT INTO voice_conversations (id, title, source, transcript, speakers, action_items, extracted_tasks, associated_task_id, raw_payload, created_at)
         VALUES (?, ?, 'omi_webhook', ?, ?, ?, ?, NULL, ?, ?);
@@ -48,7 +63,8 @@ async def omi_conversation_webhook(
         "conversation_id": conv_id,
         "title": parsed["title"],
         "action_items_count": len(parsed["action_items"]),
-        "extracted_tasks": parsed["extracted_tasks"]
+        "extracted_tasks": parsed["extracted_tasks"],
+        "deduplicated": False
     }
 
 @router.post("/integrations/omi/realtime")
@@ -60,8 +76,8 @@ async def omi_realtime_webhook(
     if not omi_service.verify_webhook(x_omi_secret):
         raise HTTPException(status_code=401, detail="Unauthorized")
     
-    # Fast acknowledgment
-    return {"status": "received", "timestamp": datetime.utcnow().isoformat()}
+    # Fast acknowledgment without triggering heavy workflow on partial chunks
+    return {"status": "received", "timestamp": utc_now_iso()}
 
 # Voice intelligence endpoints under /api/v1/voice/
 @router.get("/voice/conversations", response_model=List[VoiceConversationResponse])

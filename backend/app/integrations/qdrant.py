@@ -129,6 +129,17 @@ class QdrantIntegration:
                 )
             )
 
+        # Ensure keyword payload indices for isolated filtering
+        for field in ["user_id", "topic", "source"]:
+            try:
+                client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name=field,
+                    field_schema=qmodels.PayloadSchemaType.KEYWORD
+                )
+            except Exception:
+                pass  # Index already exists
+
     def upsert_memory(
         self,
         memory_id: str,
@@ -210,18 +221,29 @@ class QdrantIntegration:
 
         query_filter = qmodels.Filter(must=filter_conditions) if filter_conditions else None
 
-        # Execute search using Qdrant client
-        results = client.search(
-            collection_name=self.collection_name,
-            query_vector=query_vector,
-            limit=limit,
-            score_threshold=score_threshold if score_threshold > 0 else None,
-            query_filter=query_filter,
-            with_payload=True
-        )
+        # Execute search using Qdrant client query_points (modern) or search (legacy)
+        if hasattr(client, "query_points"):
+            response = client.query_points(
+                collection_name=self.collection_name,
+                query=query_vector,
+                limit=limit,
+                score_threshold=score_threshold if score_threshold > 0 else None,
+                query_filter=query_filter,
+                with_payload=True
+            )
+            raw_points = response.points
+        else:
+            raw_points = client.search(
+                collection_name=self.collection_name,
+                query_vector=query_vector,
+                limit=limit,
+                score_threshold=score_threshold if score_threshold > 0 else None,
+                query_filter=query_filter,
+                with_payload=True
+            )
 
         output = []
-        for r in results:
+        for r in raw_points:
             payload = r.payload or {}
             output.append({
                 "memory_id": payload.get("memory_id", str(r.id)),
